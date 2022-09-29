@@ -37,19 +37,136 @@ cmp al, newline
 jne get_key
 cmp di, 1
 je console
+
 console_exec:
+mov cx, di ;string len for parse_hex
 
-
-
-mov ah, 0x0E
+;es already set
+mov si, 0 ;move to beginning of string
+mov ax, seg_exec_space
+mov ds, ax
+mov di, 0
+call parse_hex
+mov ah, [ds:0]
+cmp ah, 0xF1
 mov al, '~'
+jne .whatever
+mov al, '!'
+.whatever:
+mov ah, 0x0E
+
 mov bx, 0
 int 0x10
 
 
 jmp $
 
+;converts A-Z to a-z
+letters_to_lower:
+;es:si should point to string
+;ds:di should point to buffer for modified string
+;cx should be count
+;MUST be capable for es:si and ds:di to be the same
+.convert_char:
+mov al, [es:si] ;load character
+;'a' = 0x61, 'A'=0x41, 'z' = 0x7A, 'Z'=0x5A
+cmp al, 'Z'
+jg .write_back
+cmp al, 'A'
+jl .write_back
+;ok is within range A-Z
+sub al, 0x20
+.write_back:
+mov [ds:di], al
+inc si
+inc di
+loop .convert_char
+ret
 
+
+parse_hex:
+    ;es:si should point to ascii string
+    ;ds;di should point to buffer for decoded bytes
+    ;cx should be the string size (note: no guard for destination buffer overflow)
+    ;preserves all registers
+    ;cx shall be final number of bytes written to destination
+
+
+    ;ascii: 0x30 = '0', 0x39 = '9', 0x61='a', 0x66='f'
+    ;errors: all non-hex characters are ignored. 
+    pusha
+    mov ah, 0 ;ah=0 for top nibble, ah=1 for bottom nibble
+    .step1:
+    cmp cx, 0
+    jne .step1_2
+    ;end of string
+
+    ;odd length string behavior: 0x1 = 0x01, 0x111 = 0x1101
+    cmp ah, 0 
+    jne .prep_return ;odd number of digits, so just use the in-progress data as-is
+    mov [ds:di], dh
+    inc di
+
+    .prep_return:
+    mov bx, temp_var1 ;temp_var1 = new_di
+    mov [cs:bx], di
+    popa
+    mov cx, [cs:temp_var1] ;cx=new_di
+    sub cx, di ;value = new_di - old_di
+    ret ; if cx == 0 then return
+
+    .step1_2
+    mov al, [es:di]
+    cmp al, '0'
+    jl .skip
+    cmp al, '9'
+    jg .letter1
+    ;is number
+    mov dl, al
+    sub dl, '0'
+
+    jmp .step2
+    .letter1:
+    cmp al, 'a'
+    jl .skip
+    cmp al, 'f'
+    jg .skip
+    ;is letter
+    mov dl, al
+    sub dl, 'a' - 10 ;decrease the ASCII offset, but add 10 for 0x0A = 10 in base-10
+
+    .step2:
+    cmp ah, 1
+    je .bottom_nibble
+    mov ah, 1
+    ;if we get here, we're working with top nibble
+    ;put in-progress result in dh
+    mov dh, dl
+    jmp .step1
+    .bottom_nibble:
+    mov ah, 0 ;reset back to top_nibble for next loop
+    shl dh, 4 ;make data in dh the top nibble (note: this could be made to save a byte by using mul with register reorg)
+    add dh, dl ;add top_nibble + bottom nibble to form result
+    .write_byte:
+    ;dh contains the completed byte
+    mov [ds:di], dh
+    inc di
+
+    .skip:
+    inc si
+    dec cx
+    jmp .step1
+
+
+end:
+hlt
+
+
+
+[section .bss]
+hex_table: resb 16 ;??
+
+temp_var1: resb 2
 
 
 

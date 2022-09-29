@@ -1,7 +1,8 @@
 default:
 	yasm boot.asm -o boot.bin
-	@./print_size.sh boot.bin
 	yasm image.asm -o image.img
+	echo ""
+	@./print_size.sh boot.bin
 
 run: default
 	echo "Reminder: use 'ctrl-a x' to exit"
