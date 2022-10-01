@@ -44,6 +44,9 @@ get_string:
         ;int 0x16, 0 -- wait for key and read char
         mov ah, 0
         int 0x16
+        cmp al, 0 ;no ascii code (special key)
+        je .read_key ;ignore the special key
+        
         ;ascii returned in al
         cmp al, 0x0D ;\r, enter key is pressed
         je .done
