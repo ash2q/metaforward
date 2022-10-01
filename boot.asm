@@ -95,36 +95,38 @@ ret
 print_hex:
     ;al = number
     pusha
-    xor dx, dx
-    mov dl, al
+    mov dl, al ;save al for later
+    ;display register init
     mov ah, 0x0E
     mov bx, 0
-    mov al, '0'
-    int 0x10
-    mov al, 'x'
-    int 0x10
 
-
-    ;dl = number di=backup_number
-    mov di, dx
-    mov si, .hex_map
-
-    and dx, 0xF0
-    shr dx, 4
-    add si, dx
-    mov al, [cs:si]
-    sub si, dx
+    
+    ;al = working hex nibble, dl = original byte
+    and al, 0xF0
+    shr al, 4
+    call nibble_to_hex
+    ;nibble_to_hex has character in al
     int 0x10
 
-    mov dx, di
-    and dx, 0x0F
-    add si, dx
-    mov al, [cs:si]
+    mov al, dl
+    and al, 0x0F
+    call nibble_to_hex
     int 0x10
 
     popa
 ret
-.hex_map: db "0123456789abcdef"
+
+nibble_to_hex:
+    ;input and output number in dl
+    add al, '0'
+    cmp al, '9'+1
+    jl no_letter
+    ;if gets here then it is a-f
+    add al, ('a' - '0' - 10) ;I'll be honest, I have no idea why -10 is needed, my brain is broken
+    no_letter:
+    ret 
+
+;282 -> 272 -> 251 bytes
 
 
 parse_hex:
