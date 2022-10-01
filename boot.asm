@@ -10,6 +10,12 @@
 
 
 console:
+push cs
+pop es
+mov si, console_prompt
+call print_string
+
+
 mov ax, seg_string_exec
 mov es, ax
 mov di, 0
@@ -25,6 +31,12 @@ mov ah, 0x0E
 mov bx, 0
 ;al already set
 int 0x10 ;print key
+cmp al, 0x08 ;/b
+jne .not_backspace
+;is backspace
+
+
+.not_backspace:
 cmp al, 0x0D ;if carriage return
 jne store_key
 mov al, newline ;new line
@@ -37,6 +49,8 @@ cmp al, newline
 jne get_key
 cmp di, 1
 je console
+
+
 
 console_exec:
 mov cx, di ;string len for parse_hex
@@ -90,7 +104,36 @@ loop .convert_char
 ret
 
 
+print_char:
+    ;prints character in al
+    pusha
+    mov ah, 0x0E
+    mov bx, 0
+    int 0x10
+    popa
+    ret
 
+print_string:
+    ;[es:si] = string to print
+    ;first byte of string is length
+    pusha
+    mov cl, [es:si]
+    inc si
+    .loop:
+        cmp cl, 0
+        je .done
+        mov al, [es:si]
+        call print_char
+        dec cl
+        inc si
+        cmp al, 0x0A ;\n
+        jne .loop
+        mov al, 0x0D ;\r
+        call print_char
+    jmp .loop
+    .done:
+    popa
+    ret
 
 print_hex:
     ;al = number
@@ -212,6 +255,8 @@ end:
 hlt
 
 
+[section .data]
+console_prompt: db 3, 0x0A, '>', ' ' ;\n> 
 
 [section .bss]
 hex_table: resb 16 ;??
