@@ -46,7 +46,7 @@ get_string:
         int 0x16
         cmp al, 0 ;no ascii code (special key)
         je .read_key ;ignore the special key
-        
+
         ;ascii returned in al
         cmp al, 0x0D ;\r, enter key is pressed
         je .done
@@ -82,26 +82,18 @@ get_string:
 
 
 ;converts A-Z to a-z
-letters_to_lower:
-;es:si should point to string
-;ds:di should point to buffer for modified string
-;cx should be count
-;MUST be capable for es:si and ds:di to be the same
-.convert_char:
-mov al, [es:si] ;load character
-;'a' = 0x61, 'A'=0x41, 'z' = 0x7A, 'Z'=0x5A
-cmp al, 'Z'
-jg .write_back
-cmp al, 'A'
-jl .write_back
-;ok is within range A-Z
-sub al, 0x20
-.write_back:
-mov [ds:di], al
-inc si
-inc di
-loop .convert_char
-ret
+ascii_to_lower:
+    ;al is letter. If not A-Z then do not touch
+    .convert_char:
+    ;'a' = 0x61, 'A'=0x41, 'z' = 0x7A, 'Z'=0x5A
+    cmp al, 'Z'
+    jg .done
+    cmp al, 'A'
+    jl .done
+    ;ok is within range A-Z
+    sub al, 0x20
+    .done:
+    ret
 
 
 print_char:
@@ -219,16 +211,17 @@ parse_hex:
 
     .step1_2
     mov al, [es:si]
+    call ascii_to_lower ;convert letter to lower case, in case it is upper case
     cmp al, '0'
     jl .skip
     cmp al, '9'
-    jg .letter1
+    jg .letter
     ;is number
     mov dl, al
     sub dl, '0'
 
     jmp .step2
-    .letter1:
+    .letter:
     cmp al, 'a'
     jl .skip
     cmp al, 'f'
