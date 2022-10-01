@@ -195,6 +195,11 @@ Segment Memory map:
 * 0x90000 - 0x9FFFF -- keyword code space
 * 0xA0000 - 0xFFFFF -- Reserved (system use)
 
+Stack segment memory layout, segment 0x2000
+
+* 0x8000 -- call stack
+* 0xF000 -- data stack
+
 Register layout during function execution (at the point of each keyword code):
 
 * ax, bx, cx, dx -- work registers (unpreserved)

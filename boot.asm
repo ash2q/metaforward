@@ -2,84 +2,81 @@
 [BITS 16]
 [ORG 0x7C00]
 
-;mov ah, 0
-;mov al, 3
-;int 0x10
+push seg_stack
+pop ss
+mov sp, 0x8000 ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
+;because of excessive pusha/popa usage to save space, the stack may be unexpectedly large
 
 
-
-
-console:
+proto_console:
 push cs
 pop es
 mov si, console_prompt
 call print_string
 
-
-mov ax, seg_string_exec
-mov es, ax
+push seg_string_exec
+pop es
 mov di, 0
+mov cx, 255
+call get_string
 
-get_key:
-mov ah, 0
-int 0x16 ;int 16,0 wait for key and read char
-;ascii in al
-cmp al, 0 ;if no ascii then read again
-je get_key
-print_key:
-mov ah, 0x0E
-mov bx, 0
-;al already set
-int 0x10 ;print key
-cmp al, 0x08 ;/b
-jne .not_backspace
-;is backspace
-
-
-.not_backspace:
-cmp al, 0x0D ;if carriage return
-jne store_key
-mov al, newline ;new line
-int 0x10 ;print newline character (moving console line down 1)
-;note: will store \n in the buffer
-store_key:
-mov [es:di], al
-inc di
-cmp al, newline
-jne get_key
-cmp di, 1
-je console
+mov si, di
+call console_execute
+jmp proto_console
 
 
 
-console_exec:
-mov cx, di ;string len for parse_hex
-dec cx ;remove last \n character
-mov al, cl
-call print_hex
-;es already set
-mov si, 0 ;move to beginning of string
-mov ax, seg_exec_space
-mov ds, ax
-mov di, 0
-call parse_hex
-mov ah, [ds:0]
-mov al, ah
-call print_hex
-cmp ah, 0xF1
+console_execute:
+;es:si = string to execute
 
-mov al, '~'
-jne .whatever
-mov al, '!'
-.whatever:
-mov ah, 0x0E
 
-mov bx, 0
-int 0x10
+ret
 
-int3
+get_string:
+    ;es:di = where to write string (first byte at di is actual string size)
+    ;cx = size of string buffer, returned as final size of string
+    pusha
+    inc di
+    xor dx, dx ;dx = actual string length
+    .read_key:
+        cmp cx, 0
+        je .out_of_room
+        ;int 0x16, 0 -- wait for key and read char
+        mov ah, 0
+        int 0x16
+        ;ascii returned in al
+        cmp al, 0x0D ;\r, enter key is pressed
+        je .done
+        cmp al, 0x08 ;\b, backspace key is pressed
+        jne .normal_key
+        ;backspace
+        cmp dx, 0
+        je .read_key ;just loop back if no characters entered
+        call print_char ;still print it (print_char erases and sets cursor)
+        inc cx
+        dec dx
+        dec di
+        jmp .read_key
 
-jmp console
+        .normal_key:
+        call print_char
+        mov [es:di], al
+        inc dx
+        dec cx
+        inc di
+    jmp .read_key
+    .out_of_room:
+        ;mov al, 0x0D ;set to carriage return so next bit works right
+    .done:
+        mov al, 0x0A ;\n
+        call print_char
+        mov [cs:temp_var1], dx ;note, we can inject into the stack frame for this to save space
+        popa
+        mov cx, [cs:temp_var1]
+        mov [es:di], cl ;only write lower byte into string for length prefix
+    ret
+
+
 
 ;converts A-Z to a-z
 letters_to_lower:
@@ -110,6 +107,20 @@ print_char:
     mov ah, 0x0E
     mov bx, 0
     int 0x10
+    cmp al, 0x0A ;if \n
+    jne .skip1
+    mov al, 0x0D ;print \r too
+    int 0x10
+
+    .skip1:
+    cmp al, 0x08 ;\b
+    jne .done
+    ;clear character for backspace
+    mov al, ' '
+    int 0x10
+    mov al, 0x08
+    int 0x10
+    .done:
     popa
     ret
 
