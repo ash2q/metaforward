@@ -40,7 +40,9 @@ je console
 
 console_exec:
 mov cx, di ;string len for parse_hex
-
+dec cx ;remove last \n character
+mov al, cl
+call print_hex
 ;es already set
 mov si, 0 ;move to beginning of string
 mov ax, seg_exec_space
@@ -48,7 +50,10 @@ mov ds, ax
 mov di, 0
 call parse_hex
 mov ah, [ds:0]
+mov al, ah
+call print_hex
 cmp ah, 0xF1
+
 mov al, '~'
 jne .whatever
 mov al, '!'
@@ -58,8 +63,9 @@ mov ah, 0x0E
 mov bx, 0
 int 0x10
 
+int3
 
-jmp $
+jmp console
 
 ;converts A-Z to a-z
 letters_to_lower:
@@ -84,6 +90,43 @@ loop .convert_char
 ret
 
 
+
+
+print_hex:
+    ;al = number
+    pusha
+    xor dx, dx
+    mov dl, al
+    mov ah, 0x0E
+    mov bx, 0
+    mov al, '0'
+    int 0x10
+    mov al, 'x'
+    int 0x10
+
+
+    ;dl = number di=backup_number
+    mov di, dx
+    mov si, .hex_map
+
+    and dx, 0xF0
+    shr dx, 4
+    add si, dx
+    mov al, [cs:si]
+    sub si, dx
+    int 0x10
+
+    mov dx, di
+    and dx, 0x0F
+    add si, dx
+    mov al, [cs:si]
+    int 0x10
+
+    popa
+ret
+.hex_map: db "0123456789abcdef"
+
+
 parse_hex:
     ;es:si should point to ascii string
     ;ds;di should point to buffer for decoded bytes
@@ -95,28 +138,28 @@ parse_hex:
     ;ascii: 0x30 = '0', 0x39 = '9', 0x61='a', 0x66='f'
     ;errors: all non-hex characters are ignored. 
     pusha
-    mov ah, 0 ;ah=0 for top nibble, ah=1 for bottom nibble
+    xor dx, dx
+    xor ax, ax ;ah=0 for top nibble, ah=1 for bottom nibble
     .step1:
     cmp cx, 0
     jne .step1_2
     ;end of string
 
     ;odd length string behavior: 0x1 = 0x01, 0x111 = 0x1101
-    cmp ah, 0 
+    cmp ah, 1 
     jne .prep_return ;odd number of digits, so just use the in-progress data as-is
     mov [ds:di], dh
     inc di
 
     .prep_return:
-    mov bx, temp_var1 ;temp_var1 = new_di
-    mov [cs:bx], di
+    mov [cs:temp_var1], di
     popa
     mov cx, [cs:temp_var1] ;cx=new_di
     sub cx, di ;value = new_di - old_di
-    ret ; if cx == 0 then return
+    ret
 
     .step1_2
-    mov al, [es:di]
+    mov al, [es:si]
     cmp al, '0'
     jl .skip
     cmp al, '9'
@@ -142,14 +185,19 @@ parse_hex:
     ;if we get here, we're working with top nibble
     ;put in-progress result in dh
     mov dh, dl
-    jmp .step1
+    jmp .skip
     .bottom_nibble:
     mov ah, 0 ;reset back to top_nibble for next loop
     shl dh, 4 ;make data in dh the top nibble (note: this could be made to save a byte by using mul with register reorg)
+    mov al, dl
+    ;call print_hex
+    mov al, dh
+    ;call print_hex
     add dh, dl ;add top_nibble + bottom nibble to form result
     .write_byte:
     ;dh contains the completed byte
     mov [ds:di], dh
+    xor dx, dx
     inc di
 
     .skip:

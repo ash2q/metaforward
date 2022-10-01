@@ -1,5 +1,5 @@
 default:
-	yasm boot.asm -o boot.bin
+	yasm boot.asm -o boot.bin -l boot.list.asm
 	yasm image.asm -o image.img
 	echo ""
 	@./print_size.sh boot.bin
@@ -10,3 +10,6 @@ run: default
 
 run-graphical: default
 	qemu-system-i386 -drive file=image.img,index=0,if=floppy,format=raw
+
+run-graphical-debug: default
+	qemu-system-i386 -drive file=image.img,index=0,if=floppy,format=raw -s -S
