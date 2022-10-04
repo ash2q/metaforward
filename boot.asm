@@ -2,16 +2,26 @@
 [BITS 16]
 [ORG 0x7C00]
 
+init:
 push seg_stack
 pop ss
 mov sp, 0x8000 ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
 ;because of excessive pusha/popa usage to save space, the stack may be unexpectedly large
+
+clear_bss:
+xor ax,ax
+push cs
+pop es
+mov di, begin_bss
+mov cx, (end_bss - begin_bss + 2)
+rep stosw
 
 
 proto_console:
 push cs
 pop es
 mov si, console_prompt
+mov cx, 3
 call print_string
 
 push seg_string_exec
@@ -27,10 +37,41 @@ jmp proto_console
 
 
 console_execute:
-;es:si = string to execute
+    ;es:si = string to execute
+    pusha
+    push seg_symbol_map
+    pop fs
+    push seg_functions
+    pop ds
+    push seg_string_exec
+    mov di, [cs:next_fn_byte]
+    
+    mov al, [es:si+1]
+    inc si
+    ;al = keyword
+    mov dl, [cs:construct_mode]
+    cmp dl, 0
+    je .meta_mode
+    
+    .construction:
+    movzx bx, al
+    imul bx, 4
+    mov bx, [fs:bx]
+    ;bx is now address of far jump address in symbol map
+    call FAR [bx]
+
+    jmp .done
+    .meta_mode:
+    cmp al, '`'
+    ;je meta_create_keyword
+    .done:
+    popa
+    ret
 
 
-ret
+
+
+
 
 get_string:
     ;es:di = where to write string (first byte at di is actual string size)
@@ -100,7 +141,7 @@ print_char:
     ;prints character in al
     pusha
     mov ah, 0x0E
-    mov bx, 0
+    xor bx, bx
     int 0x10
     cmp al, 0x0A ;if \n
     jne .skip1
@@ -121,10 +162,9 @@ print_char:
 
 print_string:
     ;[es:si] = string to print
-    ;first byte of string is length
+    ;cl = length
     pusha
-    mov cl, [es:si]
-    inc si
+    xor ch, ch
     .loop:
         cmp cl, 0
         je .done
@@ -262,18 +302,94 @@ end:
 hlt
 
 
+
+keyword_end_function:
+; keword for `;` 
+;note: PIC
+mov al, 0xC3
+mov [ds:di], al ;inject ret
+inc di
+mov [cs:next_fn_byte], di
+retf
+
+meta_begin_function:
+    ; meta keyword for `:`
+    ; syntax `:function_name`
+    mov al, 1
+    mov [cs:construct_mode], al
+    mov di, [cs:next_fn_byte]
+    push seg_functions
+    pop ds
+
+
+ret
+
+
+string_equal:
+    ;[es:si] -- string to find
+    ;cx -- length
+    ;[ds:di] -- string to compare
+    ;dx -- length (?)
+    ;al = 1 if equal, otherwise 0
+    pusha
+    cmp cx, dx
+    jne .skip
+    
+    repne cmpsb
+    .skip:
+    cmp cx, 0
+    popa
+    sete al
+    ret
+ret
+
+search_function:
+    ;[es:si] -- function name string
+    ;cx length
+    ;bx -- (return) slot (0 being invalid)
+    mov bx, 0
+    push ds
+    pusha
+    push seg_function_map
+    pop ds
+
+    mov di, 0 ;start from beginning
+    .loop:
+        cmp bx, [cs:function_count]
+        jg .not_found
+        mov dx, [ds:di]
+        inc di
+        call string_equal
+        add di, dx
+        inc bx
+        cmp al, 1
+        je .found
+    jmp .loop
+
+    .found:
+    mov bp, sp
+    mov [bp+10], bx ;write into the bx saved by 'pusha'
+    .not_found:
+    popa
+    pop ds
+    ret
+
+
 [section .data]
-console_prompt: db 3, 0x0A, '>', ' ' ;\n> 
+console_prompt: db 0x0A, '>', ' ' ;\n> 
 
 [section .bss]
-hex_table: resb 16 ;??
+begin_bss:
 
 temp_var1: resb 2
+construct_mode: resb 1
+next_fn_byte: resw 1
+function_count: resw 1
 
-
+end_bss:
 
 ;constants
-seg_keyword_map equ 0x1000
+seg_symbol_map equ 0x1000
 seg_stack equ 0x2000
 seg_function_map equ 0x3000
 seg_functions equ 0x4000

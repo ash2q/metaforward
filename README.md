@@ -184,7 +184,7 @@ If a fixup is attempted while current_slot is 0, an error will be generated
 Segment Memory map:
 
 * 0 - 0xFFFF -- reserved (system use) (note: bootsector loaded at 0x7C00)
-* 0x10000 - 0x2FFFF -- keyword map
+* 0x10000 - 0x2FFFF -- symbol map
 * 0x20000 - 0x2FFFF -- stack (split between data and call stack. During compilation the data stack is used for "fixups")
 * 0x30000 - 0x3FFFF -- function map
 * 0x40000 - 0x4FFFF -- compiled function space
@@ -223,12 +223,30 @@ Register layout during construction during execution of keywords
 * bp -- ?
 * ds -- compiled function space
 * es -- string execution space
-* gs, fs -- ?
+* gs, fs -- reserved. fs used for symbol map segment and must not be modified
 * cs -- keyword code space
 * FLAGS -- not preserved
 
 
 
 
+
+
+
+# Modes
+
+There are two modes for MetaForward
+
+* Meta Mode: In this mode new keywords can be added, functions can be created, and functions can be called. Nothing else is possible
+* Construct Mode: In this mode, a function is actively being built and compiled into code. The majority of coding is in this mode.
+
+Construct mode is entered into using `:` keyword, for creation of functions. Construction mode is ended and Meta mode is entered by ending the function scope by using `;`
+
+
+# Symbol map
+
+Keywords are located at 0x10000. Using a far call would require 4 bytes per entry. Using the lower ASCII map, that would be 128 possible entries, which could actually be easily reduced. 128 * 4 = 1024 bytes for the call table. 
+
+All keywords possible are initialized to an "invalid keyword" error handler
 
 
