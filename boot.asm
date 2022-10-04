@@ -1,20 +1,34 @@
-[CPU 486]
+[CPU 586]
 [BITS 16]
 [ORG 0x7C00]
 
+; Macros to turn features on and off
+
 ; %define ACCEPT_UPPER_CASE ;costs 12 bytes of ROM
 
+;assumes registers are 0 at boot (with the exception of DX, CS, IP)
+;saves about 4 bytes
+%define ASSUME_ZERO_REGISTERS 
+
+;do not change stack location (note: this may not really be possible to get away with!)
+;saves 8 bytes
+%define USE_DEFAULT_CALL_STACK
 
 init:
+cld
+%ifndef USE_DEFAULT_CALL_STACK
 push seg_stack
 pop ss
 mov sp, 0x8000 ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
 ;because of excessive pusha/popa usage to save space, the stack may be unexpectedly large
+%endif
 
 clear_bss:
+%ifndef ASSUME_ZERO_REGISTERS
 xor ax,ax
 push cs
 pop es
+%endif
 mov di, begin_bss
 mov cx, (end_bss - begin_bss + 2)
 rep stosw
@@ -117,9 +131,11 @@ get_string:
     .done:
         mov al, 0x0A ;\n
         call print_char
-        mov [cs:temp_var1], dx ;note, we can inject into the stack frame for this to save space
+
+        mov [bp + 14], dx ;save dx into cx
+        ;mov [cs:temp_var1], dx ;note, we can inject into the stack frame for this to save space
         popa
-        mov cx, [cs:temp_var1]
+        ;mov cx, [cs:temp_var1]
         mov [es:di], cl ;only write lower byte into string for length prefix
     ret
 
