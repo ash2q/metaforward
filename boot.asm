@@ -14,6 +14,10 @@
 ;saves 8 bytes
 %define USE_DEFAULT_CALL_STACK
 
+;provide error messages, otherwise errors are ignored
+;uses (so far) 8 bytes
+%define PROVIDE_ERRORS
+
 init:
 cld
 %ifndef USE_DEFAULT_CALL_STACK
@@ -181,21 +185,13 @@ print_char:
 
 print_string:
     ;[es:si] = string to print
-    ;cl = length
+    ;cx = length
     pusha
-    xor ch, ch
     .loop:
-        cmp cl, 0
-        je .done
         mov al, [es:si]
         call print_char
-        dec cl
         inc si
-        cmp al, 0x0A ;\n
-        jne .loop
-        mov al, 0x0D ;\r
-        call print_char
-    jmp .loop
+    loop .loop
     .done:
     popa
     ret
@@ -208,7 +204,6 @@ print_hex:
     mov ah, 0x0E
     mov bx, 0
 
-    
     ;al = working hex nibble, dl = original byte
     and al, 0xF0
     shr al, 4
@@ -234,7 +229,6 @@ nibble_to_hex:
     no_letter:
     ret 
 
-;282 -> 272 -> 251 bytes
 
 
 parse_hex:
@@ -250,6 +244,7 @@ parse_hex:
     pusha
     xor dx, dx
     xor ax, ax ;ah=0 for top nibble, ah=1 for bottom nibble
+    xor bx, bx
     .step1:
     cmp cx, 0
     jne .step1_2
@@ -258,14 +253,13 @@ parse_hex:
     ;odd length string behavior: 0x1 = 0x01, 0x111 = 0x1101
     cmp ah, 1 
     jne .prep_return ;odd number of digits, so just use the in-progress data as-is
-    mov [ds:di], dh
-    inc di
+    mov [ds:di+bx], dh
+    inc bx
 
     .prep_return:
-    mov [cs:temp_var1], di
+    mov bp, sp
+    mov [bp+14], bx ;write to CX slot in stack
     popa
-    mov cx, [cs:temp_var1] ;cx=new_di
-    sub cx, di ;value = new_di - old_di
     ret
 
     .step1_2
@@ -309,9 +303,9 @@ parse_hex:
     add dh, dl ;add top_nibble + bottom nibble to form result
     .write_byte:
     ;dh contains the completed byte
-    mov [ds:di], dh
+    mov [ds:di+bx], dh
+    inc bx
     xor dx, dx
-    inc di
 
     .skip:
     inc si
@@ -322,7 +316,16 @@ parse_hex:
 end:
 hlt
 
-
+keyword_error:
+; installed at 0
+%ifdef PROVIDE_ERRORS
+mov al, 'E'
+mov bx, print_char
+call bx
+mov al, '1'
+call bx
+%endif
+retf
 
 keyword_end_function:
 ; keword for `;` 
@@ -398,7 +401,6 @@ search_function:
 
 [section .data]
 console_prompt: db 0x0A, '>', ' ' ;\n> 
-
 [section .bss]
 begin_bss:
 
