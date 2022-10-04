@@ -2,6 +2,9 @@
 [BITS 16]
 [ORG 0x7C00]
 
+; %define ACCEPT_UPPER_CASE ;costs 12 bytes of ROM
+
+
 init:
 push seg_stack
 pop ss
@@ -121,7 +124,7 @@ get_string:
     ret
 
 
-
+%ifdef ACCEPT_UPPER_CASE
 ;converts A-Z to a-z
 ascii_to_lower:
     ;al is letter. If not A-Z then do not touch
@@ -135,7 +138,7 @@ ascii_to_lower:
     sub al, 0x20
     .done:
     ret
-
+%endif
 
 print_char:
     ;prints character in al
@@ -251,7 +254,9 @@ parse_hex:
 
     .step1_2
     mov al, [es:si]
+    %ifdef ACCEPT_UPPER_CASE
     call ascii_to_lower ;convert letter to lower case, in case it is upper case
+    %endif
     cmp al, '0'
     jl .skip
     cmp al, '9'
