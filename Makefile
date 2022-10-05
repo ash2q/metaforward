@@ -1,4 +1,5 @@
 default:
+	yasm compiler.asm -o compiler.bin -l compiler.list.asm
 	yasm boot.asm -o boot.bin -l boot.list.asm
 	yasm image.asm -o image.img
 	echo ""

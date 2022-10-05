@@ -184,7 +184,7 @@ If a fixup is attempted while current_slot is 0, an error will be generated
 Segment Memory map:
 
 * 0 - 0xFFFF -- reserved (system use) (note: bootsector loaded at 0x7C00)
-* 0x10000 - 0x2FFFF -- symbol map
+* 0x10000 - 0x2FFFF -- compiler code
 * 0x20000 - 0x2FFFF -- stack (split between data and call stack. During compilation the data stack is used for "fixups")
 * 0x30000 - 0x3FFFF -- function map
 * 0x40000 - 0x4FFFF -- compiled function space
@@ -199,6 +199,14 @@ Stack segment memory layout, segment 0x2000
 
 * 0x8000 -- call stack
 * 0xF000 -- data stack
+
+Compiler code layout:
+
+* 0x0000 - 0x1000 -- symbol maps (1 used for keywords, 7 available)
+* 0x1000 - 0x1200 -- Initial bootloader code (512 bytes)
+* 0x1200 - 0x1400 -- Reserved for bootloader data
+* 0x1400 - 0x2000 -- reserved (?)
+* 0x2000 - 0xFFFF -- keyword code data
 
 Register layout during function execution (at the point of each keyword code):
 
@@ -245,7 +253,7 @@ Construct mode is entered into using `:` keyword, for creation of functions. Con
 
 # Symbol map
 
-Keywords are located at 0x10000. Using a far call would require 4 bytes per entry. Using the lower ASCII map, that would be 128 possible entries, which could actually be easily reduced. 128 * 4 = 1024 bytes for the call table. 
+Keywords are located at 0x10000. Using a near call would require 2 bytes per entry. Using the lower ASCII map, that would be 128 possible entries, which could actually be easily reduced. 128 * 2 = 512 bytes for the call table. 
 
 All keywords possible are initialized to an "invalid keyword" error handler
 
