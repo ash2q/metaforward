@@ -15,6 +15,8 @@ init_keywords:
 ;continue executing...
 
 proto_console:
+    push cs
+    pop es ;needed?
     mov si, console_prompt
     mov cx, 3
     call print_string

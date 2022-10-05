@@ -8,7 +8,7 @@
 
 ;do not change stack location (note: this may not really be possible to get away with!)
 ;saves 8 bytes
-%define USE_DEFAULT_CALL_STACK
+;%define USE_DEFAULT_CALL_STACK
 
 ;provide error messages, otherwise errors are ignored
 ;uses (so far) 8 bytes
