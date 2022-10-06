@@ -397,13 +397,13 @@ end_bss:
 
 ;constants
 seg_compiler_code equ 0x1000
-seg_stack equ 0x2000
+seg_string_exec equ 0x2000
 seg_function_map equ 0x3000
 seg_functions equ 0x4000
 seg_free_space equ 0x5000
 seg_exec_space equ 0x6000
 seg_string_construct equ 0x7000
-seg_string_exec equ 0x8000
+seg_stack equ 0x8000
 seg_keyword_code equ 0x9000
 
 newline equ 0x0A

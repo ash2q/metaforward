@@ -9,7 +9,8 @@ cld
 %ifndef USE_DEFAULT_CALL_STACK
 push seg_stack
 pop ss
-mov sp, 0x8000 ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
+;seg_stack is 0x8000
+mov sp, ss ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
 ;because of excessive pusha/popa usage to save space, the stack may be unexpectedly large
 %endif
 
@@ -39,4 +40,4 @@ begin_code:
 incbin "compiler.bin"
 
 seg_compiler_code equ 0x1000
-seg_stack equ 0x2000
+seg_stack equ 0x8000
