@@ -13,7 +13,9 @@ init_keywords:
     xor di, di ;keyword map is at 0
     ;ds will be set by bootloader to 0x1000 already
     rep stosw
-
+    mov al, '`'
+    mov bx, meta_create_keyword
+    call install_keyword
 ;continue executing...
 
 proto_console:
@@ -42,31 +44,16 @@ console_execute:
     ;pop ds
     ;push seg_string_exec
     ;mov di, [cs:next_fn_byte]
-    
+    cmp cx, 0
+    je .done
+    .valid:
     mov al, [es:si]
-    ;inc si
     ;al = keyword
-    mov dl, [cs:compiler_mode]
-    cmp dl, 0
-    je .meta_mode
-    
-    .construction:
     movzx bx, al
     imul bx, 2
-    ;bx is now address of far jump address in symbol map
+    ;bx is now address of jump address in symbol map
     call [cs:bx]
 
-    jmp .done
-
-    .meta_mode:
-    cmp al, '`'
-    jne .next1
-    call meta_create_keyword
-    jmp .done
-    .next1:
-    cmp al, ':'
-    jne .done
-    call meta_begin_function
     .done:
     popa
     ret
@@ -82,22 +69,39 @@ meta_create_keyword:
     pusha
     inc si
     mov al, [es:si] ;keyword to create
+    push ax ;save the keyword
     inc si
     push cx
     call parse_hex_word
     pop cx
     ;ax should now be the address
+    mov bx, ax ;save address to bx
     add si, 5 ;skip address and space
     sub cx, 6 ;remove those from total string length (plus initial keyword)
     ;note: no error checking!
 
     mov di, ax
-    mov ax, cx
-    ;call print_hex_word
-    call parse_hex_word
-    
+    call parse_hex
+
+    ;restore the keyword
+    pop ax
+    call install_keyword
     popa
     ret
+
+install_keyword:
+    ;al = keyword
+    ;bx = address
+    push ds
+    push di
+    push cs
+    pop ds
+    movzx di, al
+    imul di, 2
+    mov [ds:di], bx
+    pop di
+    pop ds
+ret
 
 
 get_string:
@@ -275,10 +279,6 @@ parse_hex:
     ;ascii: 0x30 = '0', 0x39 = '9', 0x61='a', 0x66='f'
     ;errors: all non-hex characters are ignored. 
     pusha
-    mov ax, cx
-    call print_hex_word
-    mov al, 'X'
-    call print_char
     xor dx, dx
     xor ax, ax ;ah=0 for top nibble, ah=1 for bottom nibble
     xor bx, bx
@@ -296,15 +296,12 @@ parse_hex:
 
     .prep_return:
     mov bp, sp
-    ;mov ax, bx
-    ;call print_hex_word
     mov [bp+12], bx ;write to CX slot in stack
     popa
     ret
 
     .step1_2
     mov al, [es:si]
-    call print_char
     %ifdef ACCEPT_UPPER_CASE
     call ascii_to_lower ;convert letter to lower case, in case it is upper case
     %endif
@@ -337,19 +334,9 @@ parse_hex:
     .bottom_nibble:
     mov ah, 0 ;reset back to top_nibble for next loop
     shl dh, 4 ;make data in dh the top nibble (note: this could be made to save a byte by using mul with register reorg)
-    ;mov al, dl
-    ;call print_hex
-    ;mov al, dh
-    ;call print_hex
     add dh, dl ;add top_nibble + bottom nibble to form result
     .write_byte:
     ;dh contains the completed byte
-    push ax
-    mov al, 'Y'
-    call print_char
-    mov ax, bx
-    call print_hex_word
-    pop ax
     mov [ds:di+bx], dh
     inc bx
     xor dx, dx
@@ -365,10 +352,9 @@ keyword_error:
 ; installed at 0
 %ifdef PROVIDE_ERRORS
 mov al, 'E'
-mov bx, print_char
-call bx
+call print_char
 mov al, '1'
-call bx
+call print_char
 %endif
 ret
 
@@ -385,7 +371,6 @@ meta_begin_function:
     ; meta keyword for `:`
     ; syntax `:function_name`
     mov al, 1
-    mov [cs:compiler_mode], al
     mov di, [cs:next_fn_byte]
     push seg_functions
     pop ds
@@ -450,7 +435,6 @@ console_prompt: db 0x0A, '>', ' ' ;\n>
 begin_bss:
 
 temp_var1: resb 2
-compiler_mode: resb 1
 next_fn_byte: resw 1
 function_count: resw 1
 
