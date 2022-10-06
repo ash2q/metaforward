@@ -6,10 +6,12 @@
 begin_code:
 
 init_keywords:
+    ;store default keyword function into every keyword
     mov ax, keyword_error
     mov cx, 128
     ;es should already be seg_compiler
     xor di, di ;keyword map is at 0
+    ;ds will be set by bootloader to 0x1000 already
     rep stosw
 
 ;continue executing...
@@ -44,7 +46,7 @@ console_execute:
     mov al, [es:si]
     ;inc si
     ;al = keyword
-    mov dl, [cs:construct_mode]
+    mov dl, [cs:compiler_mode]
     cmp dl, 0
     je .meta_mode
     
@@ -58,9 +60,13 @@ console_execute:
 
     .meta_mode:
     cmp al, '`'
-    je meta_create_keyword
+    jne .next1
+    call meta_create_keyword
+    jmp .done
+    .next1:
     cmp al, ':'
-    je meta_begin_function
+    jne .done
+    call meta_begin_function
     .done:
     popa
     ret
@@ -69,20 +75,35 @@ console_execute:
 meta_create_keyword:
 ;syntax, where x is keyword
 ;example: `x1000 9090cb
-;define keyword of `x` which executes "nop nop retf" upon execution
+;1000 is where in memory to place the data
+;next is the hex string of the opcodes to execute when encountering this keyword
+;defines keyword of `x` which executes "nop nop retf" upon execution located at 0x1000
+;note: the space between the memory and hex string is NOT enforced. That character is simply skipped. It can be anything
     pusha
     inc si
+    mov al, [es:si] ;keyword to create
+    inc si
+    push cx
+    call parse_hex_word
+    pop cx
+    ;ax should now be the address
+    add si, 5 ;skip address and space
+    sub cx, 6 ;remove those from total string length (plus initial keyword)
+    ;note: no error checking!
 
+    mov di, ax
+    mov ax, cx
+    ;call print_hex_word
+    call parse_hex_word
+    
     popa
     ret
 
 
-
 get_string:
-    ;es:di = where to write string (first byte at di is actual string size)
+    ;es:di = where to write string
     ;cx = size of string buffer, returned as final size of string
     pusha
-    inc di
     xor dx, dx ;dx = actual string length
     .read_key:
         cmp cx, 0
@@ -120,11 +141,9 @@ get_string:
         mov al, 0x0A ;\n
         call print_char
 
-        mov [bp + 14], dx ;save dx into cx
-        ;mov [cs:temp_var1], dx ;note, we can inject into the stack frame for this to save space
+        mov bp, sp
+        mov [bp + 12], dx ;save dx into cx
         popa
-        ;mov cx, [cs:temp_var1]
-        mov [es:di], cl ;only write lower byte into string for length prefix
     ret
 
 
@@ -180,13 +199,25 @@ print_string:
     popa
     ret
 
-print_hex:
+print_hex_word:
+    ;ax = number
+    ;preserves all registers
+    ;first print ah
+    xchg al, ah
+    call print_hex_byte
+    ;now print al
+    xchg ah, al
+    call print_hex_byte
+ret
+    popa
+
+print_hex_byte:
     ;al = number
     pusha
     mov dl, al ;save al for later
     ;display register init
     mov ah, 0x0E
-    mov bx, 0
+    xor bx, bx
 
     ;al = working hex nibble, dl = original byte
     and al, 0xF0
@@ -213,6 +244,24 @@ nibble_to_hex:
     no_letter:
     ret 
 
+parse_hex_word:
+    ;es:si should point to ascii string
+    ;ax is return value
+    ;note: cost 20 bytes
+    push ds
+    push cs
+    pop ds
+    push cx
+    push di
+    mov cx, 2
+    mov di, temp_parse_word
+    call parse_hex
+    mov ax, [temp_parse_word]
+    xchg ah, al ;swap endian
+    pop di
+    pop cx
+    pop ds
+    ret
 
 
 parse_hex:
@@ -226,9 +275,14 @@ parse_hex:
     ;ascii: 0x30 = '0', 0x39 = '9', 0x61='a', 0x66='f'
     ;errors: all non-hex characters are ignored. 
     pusha
+    mov ax, cx
+    call print_hex_word
+    mov al, 'X'
+    call print_char
     xor dx, dx
     xor ax, ax ;ah=0 for top nibble, ah=1 for bottom nibble
     xor bx, bx
+    
     .step1:
     cmp cx, 0
     jne .step1_2
@@ -242,12 +296,15 @@ parse_hex:
 
     .prep_return:
     mov bp, sp
-    mov [bp+14], bx ;write to CX slot in stack
+    ;mov ax, bx
+    ;call print_hex_word
+    mov [bp+12], bx ;write to CX slot in stack
     popa
     ret
 
     .step1_2
     mov al, [es:si]
+    call print_char
     %ifdef ACCEPT_UPPER_CASE
     call ascii_to_lower ;convert letter to lower case, in case it is upper case
     %endif
@@ -280,13 +337,19 @@ parse_hex:
     .bottom_nibble:
     mov ah, 0 ;reset back to top_nibble for next loop
     shl dh, 4 ;make data in dh the top nibble (note: this could be made to save a byte by using mul with register reorg)
-    mov al, dl
+    ;mov al, dl
     ;call print_hex
-    mov al, dh
+    ;mov al, dh
     ;call print_hex
     add dh, dl ;add top_nibble + bottom nibble to form result
     .write_byte:
     ;dh contains the completed byte
+    push ax
+    mov al, 'Y'
+    call print_char
+    mov ax, bx
+    call print_hex_word
+    pop ax
     mov [ds:di+bx], dh
     inc bx
     xor dx, dx
@@ -297,8 +360,6 @@ parse_hex:
     jmp .step1
 
 
-end:
-hlt
 
 keyword_error:
 ; installed at 0
@@ -309,7 +370,7 @@ call bx
 mov al, '1'
 call bx
 %endif
-retf
+ret
 
 keyword_end_function:
 ; keword for `;` 
@@ -318,13 +379,13 @@ mov al, 0xC3
 mov [ds:di], al ;inject ret
 inc di
 mov [cs:next_fn_byte], di
-retf
+ret
 
 meta_begin_function:
     ; meta keyword for `:`
     ; syntax `:function_name`
     mov al, 1
-    mov [cs:construct_mode], al
+    mov [cs:compiler_mode], al
     mov di, [cs:next_fn_byte]
     push seg_functions
     pop ds
@@ -351,36 +412,36 @@ string_equal:
     ret
 ret
 
-search_function:
+;search_function:
     ;[es:si] -- function name string
     ;cx length
     ;bx -- (return) slot (0 being invalid)
-    mov bx, 0
-    push ds
-    pusha
-    push seg_function_map
-    pop ds
+;    mov bx, 0
+;    push ds
+;    pusha
+;    push seg_function_map
+;    pop ds
 
-    mov di, 0 ;start from beginning
-    .loop:
-        cmp bx, [cs:function_count]
-        jg .not_found
-        mov dx, [ds:di]
-        inc di
-        call string_equal
-        add di, dx
-        inc bx
-        cmp al, 1
-        je .found
-    jmp .loop
+;    mov di, 0 ;start from beginning
+;    .loop:
+;        cmp bx, [cs:function_count]
+;        jg .not_found
+;        mov dx, [ds:di]
+;        inc di
+;        call string_equal
+;        add di, dx
+;        inc bx
+;        cmp al, 1
+;        je .found
+;    jmp .loop
 
-    .found:
-    mov bp, sp
-    mov [bp+10], bx ;write into the bx saved by 'pusha'
-    .not_found:
-    popa
-    pop ds
-    ret
+;    .found:
+;    mov bp, sp
+;    mov [bp+10], bx ;write into the bx saved by 'pusha'
+;    .not_found:
+;    popa
+;    pop ds
+;    ret
 
 
 [section .data]
@@ -389,9 +450,11 @@ console_prompt: db 0x0A, '>', ' ' ;\n>
 begin_bss:
 
 temp_var1: resb 2
-construct_mode: resb 1
+compiler_mode: resb 1
 next_fn_byte: resw 1
 function_count: resw 1
+
+temp_parse_word: resb 2
 
 end_bss:
 

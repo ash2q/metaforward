@@ -15,27 +15,45 @@ mov sp, ss ;setup stack to somewhere a bit more roomy (can potentially be elimin
 %endif
 
 copy_code:
-mov cx, 1024
-push cs
-pop ds
+%ifdef ASSUME_ZERO_REGISTERS
+    mov cx, 1024
+%else
+    mov ds, di 
+    ;push cs
+    ;pop ds ;set ds to 0
+    mov ch, 4 ;sets CX to 0x400, or 1024
+%endif
+
 mov si, begin_code
-push seg_compiler_code
-pop es
+%ifdef ASSUME_ZERO_REGISTERS
+    mov bh, 0x10 ;seg_compiler_code is 0x1000
+    mov es, bx
+%else
+    push seg_compiler_code
+    pop es
+%endif
 mov di, es ;copy compiler code to 0x1000, same as seg_compiler_code
+%ifdef USE_FAR_CALL_JMP
+    push di
+    push di ;later is used by retf to far call to compiler code
+%endif
 .zero_memory
 ;zeros all memmory so that the .bss section can be safely assumed to be 0
 ;save cx and di so we can use them later
 pusha
 %ifndef ASSUME_ZERO_REGISTERS
-mov al, 0
+    mov al, 0
 %endif
 rep stosb
 popa
 .copy_boot_code:
 rep movsb
 
-jmp 0x1000:0x1000 ;far jmp to where begin_code *should* be executed from
-
+%ifdef USE_FAR_CALL_JMP
+    retf
+%else
+    jmp 0x1000:0x1000 ;far jmp to where begin_code *should* be executed from
+%endif
 begin_code:
 incbin "compiler.bin"
 
