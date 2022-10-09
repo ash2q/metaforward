@@ -202,11 +202,16 @@ Stack segment memory layout, segment 0x2000
 
 Compiler code layout:
 
-* 0x0000 - 0x1000 -- symbol maps (1 used for keywords, 7 available)
+* 0x0000 - 0x0200 -- symbol maps (1 used for keywords, 7 available)
 * 0x1000 - 0x1200 -- Initial bootloader code (512 bytes)
 * 0x1200 - 0x1400 -- Reserved for bootloader data
 * 0x1400 - 0x2000 -- reserved (?)
 * 0x2000 - 0xFFFF -- keyword code data
+
+Function code layout:
+
+* 0x0000 - 0x1000 -- reserved
+* 0x1000 - 0xFFFF -- function code space
 
 Register Values during meta keyword execution:
 
@@ -217,7 +222,17 @@ Register Values during meta keyword execution:
 * es:si -- string to execute (pointing at keyword)
 * ds:di -- target place to write function (preserved, is saved to [cs:next_fn_byte] ?)
 * cs -- compiler code section
+* fs -- compiler code section
 
+Register Values during function execution:
+
+* ax, cx, dx -- no purpose
+* cs -- function section
+* fs -- compiler code section
+* ds -- stack section
+* es -- ?
+* bp -- data stack
+* di, si -- none
 
 
 Register layout during function execution (at the point of each keyword code):
@@ -270,6 +285,19 @@ Keywords are located at 0x10000. Using a near call would require 2 bytes per ent
 All keywords possible are initialized to an "invalid keyword" error handler
 
 
+# Function Slots
+
+Function slots are basically just a table for where functions exist at. All functions should begin as "0" which causes an error message
+
+The table is located at 0x200 in the compiler segment
+
+Key: value, a 2 byte value up to 0x0700
+Value: 2 byte word for function address to call
+
+This allows for a total of up to 1792 number-functions per program
+It is expected more "full" versions of the language to define name-functions as a replacement
+
+
 
 # Bare keywords
 
@@ -278,7 +306,7 @@ These are the only keywords supported in the bootsector version of MetaForward
 * ` -- add new keyword (syntax `x1234 12345678 ; make keyword of x at address 1234, with code listed)
 * ~ -- create number function. (syntax ~1234 ; creates a new function, register it to slot 1234)
 * ; -- end function (place ret, do various compiler cleanup to prepare for next function)
-* , -- begin execution of program, by executing function 1
+* x -- begin execution of program, by executing function 1
 * $ -- insert call to number function ($1234 ; calls function at slot 1234)
 * ' -- insert hex code into current function (syntax '909090 ; inserts 909090 into current function as hex code)
 * # -- no-op. functions as comment

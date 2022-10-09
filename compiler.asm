@@ -16,6 +16,16 @@ init_keywords:
     mov al, '`'
     mov bx, meta_create_keyword
     call install_keyword
+
+    mov bx, meta_begin_function
+    mov al, '~'
+    call install_keyword
+
+    mov bx, keyword_end_function
+    mov al, ';'
+    call install_keyword
+
+
 ;continue executing...
 
 proto_console:
@@ -94,12 +104,14 @@ console_execute:
         imul bx, 2
         ;bx is now address of jump address in symbol map
 
+        push seg_function_map
+        pop fs
         push seg_functions
         pop ds
-        mov di, [cs:next_fn_byte]
+        mov di, [cs:current_fn_byte] ;should start at 0x1000
         mov bp, sp
         call [cs:bx]
-        mov [cs:next_fn_byte], di
+        mov [cs:current_fn_byte], di
 
     .done:
     popa
@@ -143,96 +155,70 @@ keyword_error:
     %ifdef PROVIDE_ERRORS
     mov al, 'E'
     call print_char
-    mov al, '1'
-    call print_char
     %endif
     ret
 
 keyword_end_function:
-; keword for `;` 
-;note: PIC
-;mov al, 0xC3
-;mov [ds:di], al ;inject ret
-;inc di
-;mov [cs:next_fn_byte], di
-;ret
+    ;keyword for `;` 
+    mov al, 0xCB ;ret
+    mov [ds:di], al ;inject ret
+    inc di
+ret
+
 
 meta_begin_function:
-    ; meta keyword for `:`
-    ; syntax `:function_name`
-    mov al, 1
-    mov di, [cs:next_fn_byte]
-    push seg_functions
-    pop ds
-
-
+    ; meta keyword for `~`
+    ; syntax `~1234 where 1234 is function number`
+    mov bx, 0x200 ;set to function slot area
+    inc si ;get to start of number
+    call parse_hex_word
+    ;ax now function slot number
+    mov [cs:bx], di
+    ;now function slot number is set to the current fn byte
 ret
 
-;abcdefghijklmno -- 15
-
-call_function:
-    push ds
-    push di
-    push seg_function_map
-    xor di, di ;[ds:di] now is function map
-
-    inc si ;now at function name
-    
-    .next_string:
-    movzx dx, [di]
-    add di, 2
-    cmp cx, dx
-    jne .next_string
-
-    .test_string_equal:
-        pusha
-        cmp cx, dx
-        jne .skip
-        
-        repne cmpsb
-        .skip:
-        cmp cx, 0
-        popa
-        sete al
-
-    .done:
-    pop di
-    pop ds
+keyword_call:
+    ;keyword for `$`
+    ;$1234 -- where 1234 is the function slot
+    inc si
+    call parse_hex_word
+    ;ax = slot
+    imul ax, 2
+    mov ax, bx
+    mov bx, [cs:bx+0x200]
+    mov si, begin_template_call
+    call copy_template_block
 ret
 
-;search_function:
-    ;[es:si] -- function name string
-    ;cx length
-    ;bx -- (return) slot (0 being invalid)
-;    mov bx, 0
-;    push ds
-;    pusha
-;    push seg_function_map
-;    pop ds
+begin_template_call:
+    mov bx, [fs:0x0000]
+    call bx
+    ret
+end_template_call:
 
-;    mov di, 0 ;start from beginning
-;    .loop:
-;        cmp bx, [cs:function_count]
-;        jg .not_found
-;        mov dx, [ds:di]
-;        inc di
-;        call string_equal
-;        add di, dx
-;        inc bx
-;        cmp al, 1
-;        je .found
-;    jmp .loop
-
-;    .found:
-;    mov bp, sp
-;    mov [bp+10], bx ;write into the bx saved by 'pusha'
-;    .not_found:
-;    popa
-;    pop ds
-;    ret
+keyword_execute:
+    ;keyword for x
+    ;no arguments
+    ;mov bx, 0x1002
+ret
 
 
-
+copy_template_block:
+    ;copy block of data from compiler code into function code
+    ;incrementing di as required
+    ;cx should be length
+    ;si should be local code address
+    ;should return di pointing at next free function code byte
+    ;ax and cx will be trashed
+    ;push cs
+    ;pop ds
+    .loop:
+        mov al, [cs:si]
+        mov [ds:di], al
+        inc di
+        inc si
+    loop .loop
+ret
 
 
 
@@ -454,11 +440,11 @@ parse_hex:
 
 [section .data]
 console_prompt: db 0x0A, '>', ' ' ;\n> 
+current_fn_byte: dw 0x1000
 [section .bss]
 begin_bss:
 
 temp_var1: resb 2
-next_fn_byte: resw 1
 function_count: resw 1
 
 temp_parse_word: resb 2
