@@ -400,8 +400,7 @@ parse_hex:
     cmp al, '9'
     jg .letter
     ;is number
-    mov dl, al
-    sub dl, '0'
+    sub al, '0'
 
     jmp .step2
     .letter:
@@ -410,8 +409,7 @@ parse_hex:
     cmp al, 'f'
     jg .skip
     ;is letter
-    mov dl, al
-    sub dl, 'a' - 10 ;decrease the ASCII offset, but add 10 for 0x0A = 10 in base-10
+    sub al, 'a' - 10 ;decrease the ASCII offset, but add 10 for 0x0A = 10 in base-10
 
     .step2:
     cmp ah, 1
@@ -419,12 +417,12 @@ parse_hex:
     mov ah, 1
     ;if we get here, we're working with top nibble
     ;put in-progress result in dh
-    mov dh, dl
+    mov dh, al
     jmp .skip
     .bottom_nibble:
     mov ah, 0 ;reset back to top_nibble for next loop
     shl dh, 4 ;make data in dh the top nibble (note: this could be made to save a byte by using mul with register reorg)
-    add dh, dl ;add top_nibble + bottom nibble to form result
+    add dh, al ;add top_nibble + bottom nibble to form result
     .write_byte:
     ;dh contains the completed byte
     mov [ds:di+bx], dh
