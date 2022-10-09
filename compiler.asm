@@ -8,23 +8,28 @@ begin_code:
 init_keywords:
     ;store default keyword function into every keyword
     mov ax, keyword_error
-    mov cx, 128
+    mov cl, 128 ;CX should be zero entering into this
     ;es should already be seg_compiler
     xor di, di ;keyword map is at 0
     ;ds will be set by bootloader to 0x1000 already
     rep stosw
+    mov dx, install_keyword
+
     mov al, '`'
     mov bx, meta_create_keyword
-    call install_keyword
+    call dx
 
     mov bx, meta_begin_function
     mov al, '~'
-    call install_keyword
+    call dx
 
     mov bx, keyword_end_function
     mov al, ';'
-    call install_keyword
+    call dx
 
+    mov bx, keyword_call
+    mov al, '$'
+    call dx
 
 ;continue executing...
 
@@ -184,16 +189,17 @@ keyword_call:
     call parse_hex_word
     ;ax = slot
     imul ax, 2
-    mov ax, bx
-    mov bx, [cs:bx+0x200]
+    add ax, 0x200
+    mov cx, end_template_call - begin_template_call
+    mov [cs:si+3], ax ;overwrite [fs:0] with slot address
     mov si, begin_template_call
     call copy_template_block
 ret
 
 begin_template_call:
-    mov bx, [fs:0x0000]
+    mov bx, [fs:0x0000] ;[FS:0] IS REPLACED
+    ;64 8B 1E 0000 -- FS, MOV, RM(bx), OFFSET
     call bx
-    ret
 end_template_call:
 
 keyword_execute:
