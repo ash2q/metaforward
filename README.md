@@ -186,13 +186,13 @@ Segment Memory map:
 * 0 - 0xFFFF -- reserved (system use) (note: bootsector loaded at 0x7C00)
 * 0x10000 - 0x2FFFF -- compiler code
 * 0x20000 - 0x2FFFF -- stack (split between data and call stack. During compilation the data stack is used for "fixups")
-* 0x30000 - 0x3FFFF -- function map
+* 0x30000 - 0x3FFFF -- Xfunction map
 * 0x40000 - 0x4FFFF -- compiled function space
-* 0x50000 - 0x5FFFF -- free data space
-* 0x60000 - 0x6FFFF -- freestanding code execution space
-* 0x70000 - 0x7FFFF -- string construction space (created strings are placed here)
+* 0x50000 - 0x5FFFF -- Xfree data space
+* 0x60000 - 0x6FFFF -- Xfreestanding code execution space
+* 0x70000 - 0x7FFFF -- Xstring construction space (created strings are placed here)
 * 0x80000 - 0x8FFFF -- string execution space (lines of code are placed here)
-* 0x90000 - 0x9FFFF -- keyword code space
+* 0x90000 - 0x9FFFF -- Xkeyword code space
 * 0xA0000 - 0xFFFFF -- Reserved (system use)
 
 Stack segment memory layout, segment 0x2000
@@ -207,6 +207,18 @@ Compiler code layout:
 * 0x1200 - 0x1400 -- Reserved for bootloader data
 * 0x1400 - 0x2000 -- reserved (?)
 * 0x2000 - 0xFFFF -- keyword code data
+
+Register Values during meta keyword execution:
+
+* ax, bx, dx -- none (unpreserved)
+* mov cx -- length of string to execute
+* sp -- call stack
+* bp -- same value as sp just before call (sp-2)
+* es:si -- string to execute (pointing at keyword)
+* ds:di -- target place to write function (preserved, is saved to [cs:next_fn_byte] ?)
+* cs -- compiler code section
+
+
 
 Register layout during function execution (at the point of each keyword code):
 
@@ -256,5 +268,19 @@ Construct mode is entered into using `:` keyword, for creation of functions. Con
 Keywords are located at 0x10000. Using a near call would require 2 bytes per entry. Using the lower ASCII map, that would be 128 possible entries, which could actually be easily reduced. 128 * 2 = 512 bytes for the call table. 
 
 All keywords possible are initialized to an "invalid keyword" error handler
+
+
+
+# Bare keywords
+
+These are the only keywords supported in the bootsector version of MetaForward
+
+* ` -- add new keyword (syntax `x1234 12345678 ; make keyword of x at address 1234, with code listed)
+* ~ -- create number function. (syntax ~1234 ; creates a new function, register it to slot 1234)
+* ; -- end function (place ret, do various compiler cleanup to prepare for next function)
+* , -- begin execution of program, by executing function 1
+* $ -- insert call to number function ($1234 ; calls function at slot 1234)
+* ' -- insert hex code into current function (syntax '909090 ; inserts 909090 into current function as hex code)
+* # -- no-op. functions as comment
 
 

@@ -29,80 +29,6 @@ proto_console:
     pop es
     mov di, 0
     mov cx, 255
-    call get_string
-
-    mov si, di
-    call console_execute
-jmp proto_console
-
-
-
-console_execute:
-    ;es:si = string to execute
-    pusha
-    ;push seg_functions
-    ;pop ds
-    ;push seg_string_exec
-    ;mov di, [cs:next_fn_byte]
-    cmp cx, 0
-    je .done
-    .valid:
-    mov al, [es:si]
-    ;al = keyword
-    movzx bx, al
-    imul bx, 2
-    ;bx is now address of jump address in symbol map
-    call [cs:bx]
-
-    .done:
-    popa
-    ret
-
-
-meta_create_keyword:
-;syntax, where x is keyword
-;example: `x1000 9090cb
-;1000 is where in memory to place the data
-;next is the hex string of the opcodes to execute when encountering this keyword
-;defines keyword of `x` which executes "nop nop retf" upon execution located at 0x1000
-;note: the space between the memory and hex string is NOT enforced. That character is simply skipped. It can be anything
-    pusha
-    inc si
-    mov al, [es:si] ;keyword to create
-    push ax ;save the keyword
-    inc si
-    push cx
-    call parse_hex_word
-    pop cx
-    ;ax should now be the address
-    mov bx, ax ;save address to bx
-    add si, 5 ;skip address and space
-    sub cx, 6 ;remove those from total string length (plus initial keyword)
-    ;note: no error checking!
-
-    mov di, ax
-    call parse_hex
-
-    ;restore the keyword
-    pop ax
-    call install_keyword
-    popa
-    ret
-
-install_keyword:
-    ;al = keyword
-    ;bx = address
-    push ds
-    push di
-    push cs
-    pop ds
-    movzx di, al
-    imul di, 2
-    mov [ds:di], bx
-    pop di
-    pop ds
-ret
-
 
 get_string:
     ;es:di = where to write string
@@ -148,7 +74,185 @@ get_string:
         mov bp, sp
         mov [bp + 12], dx ;save dx into cx
         popa
+
+    mov si, di
+    call console_execute
+jmp proto_console
+
+
+
+console_execute:
+    ;es:si = string to execute
+    pusha
+    cmp cx, 0
+    je .done
+
+    .valid:
+        mov al, [es:si]
+        ;al = keyword
+        movzx bx, al
+        imul bx, 2
+        ;bx is now address of jump address in symbol map
+
+        push seg_functions
+        pop ds
+        mov di, [cs:next_fn_byte]
+        mov bp, sp
+        call [cs:bx]
+        mov [cs:next_fn_byte], di
+
+    .done:
+    popa
     ret
+
+
+meta_create_keyword:
+;syntax, where x is keyword
+;example: `x1000 9090cb
+;1000 is where in memory to place the data
+;next is the hex string of the opcodes to execute when encountering this keyword
+;defines keyword of `x` which executes "nop nop retf" upon execution located at 0x1000
+;note: the space between the memory and hex string is NOT enforced. That character is simply skipped. It can be anything
+    pusha
+    inc si
+    mov al, [es:si] ;keyword to create
+    push ax ;save the keyword
+    inc si
+    push cx
+    call parse_hex_word
+    pop cx
+    ;ax should now be the address
+    mov bx, ax ;save address to bx
+    add si, 5 ;skip address and space
+    sub cx, 6 ;remove those from total string length (plus initial keyword)
+    ;note: no error checking!
+
+    mov di, ax
+    call parse_hex
+
+    ;restore the keyword
+    pop ax
+    call install_keyword
+    popa
+    ret
+
+
+
+keyword_error:
+    ; installed at 0
+    %ifdef PROVIDE_ERRORS
+    mov al, 'E'
+    call print_char
+    mov al, '1'
+    call print_char
+    %endif
+    ret
+
+keyword_end_function:
+; keword for `;` 
+;note: PIC
+;mov al, 0xC3
+;mov [ds:di], al ;inject ret
+;inc di
+;mov [cs:next_fn_byte], di
+;ret
+
+meta_begin_function:
+    ; meta keyword for `:`
+    ; syntax `:function_name`
+    mov al, 1
+    mov di, [cs:next_fn_byte]
+    push seg_functions
+    pop ds
+
+
+ret
+
+;abcdefghijklmno -- 15
+
+call_function:
+    push ds
+    push di
+    push seg_function_map
+    xor di, di ;[ds:di] now is function map
+
+    inc si ;now at function name
+    
+    .next_string:
+    movzx dx, [di]
+    add di, 2
+    cmp cx, dx
+    jne .next_string
+
+    .test_string_equal:
+        pusha
+        cmp cx, dx
+        jne .skip
+        
+        repne cmpsb
+        .skip:
+        cmp cx, 0
+        popa
+        sete al
+
+    .done:
+    pop di
+    pop ds
+ret
+
+;search_function:
+    ;[es:si] -- function name string
+    ;cx length
+    ;bx -- (return) slot (0 being invalid)
+;    mov bx, 0
+;    push ds
+;    pusha
+;    push seg_function_map
+;    pop ds
+
+;    mov di, 0 ;start from beginning
+;    .loop:
+;        cmp bx, [cs:function_count]
+;        jg .not_found
+;        mov dx, [ds:di]
+;        inc di
+;        call string_equal
+;        add di, dx
+;        inc bx
+;        cmp al, 1
+;        je .found
+;    jmp .loop
+
+;    .found:
+;    mov bp, sp
+;    mov [bp+10], bx ;write into the bx saved by 'pusha'
+;    .not_found:
+;    popa
+;    pop ds
+;    ret
+
+
+
+
+
+
+install_keyword:
+    ;al = keyword
+    ;bx = address
+    push ds
+    push di
+    push cs
+    pop ds
+    movzx di, al
+    imul di, 2
+    mov [ds:di], bx
+    pop di
+    pop ds
+ret
+
+
+
+
 
 
 %ifdef ACCEPT_UPPER_CASE
@@ -346,87 +450,6 @@ parse_hex:
     dec cx
     jmp .step1
 
-
-
-keyword_error:
-; installed at 0
-%ifdef PROVIDE_ERRORS
-mov al, 'E'
-call print_char
-mov al, '1'
-call print_char
-%endif
-ret
-
-keyword_end_function:
-; keword for `;` 
-;note: PIC
-mov al, 0xC3
-mov [ds:di], al ;inject ret
-inc di
-mov [cs:next_fn_byte], di
-ret
-
-meta_begin_function:
-    ; meta keyword for `:`
-    ; syntax `:function_name`
-    mov al, 1
-    mov di, [cs:next_fn_byte]
-    push seg_functions
-    pop ds
-
-
-ret
-
-
-string_equal:
-    ;[es:si] -- string to find
-    ;cx -- length
-    ;[ds:di] -- string to compare
-    ;dx -- length (?)
-    ;al = 1 if equal, otherwise 0
-    pusha
-    cmp cx, dx
-    jne .skip
-    
-    repne cmpsb
-    .skip:
-    cmp cx, 0
-    popa
-    sete al
-    ret
-ret
-
-;search_function:
-    ;[es:si] -- function name string
-    ;cx length
-    ;bx -- (return) slot (0 being invalid)
-;    mov bx, 0
-;    push ds
-;    pusha
-;    push seg_function_map
-;    pop ds
-
-;    mov di, 0 ;start from beginning
-;    .loop:
-;        cmp bx, [cs:function_count]
-;        jg .not_found
-;        mov dx, [ds:di]
-;        inc di
-;        call string_equal
-;        add di, dx
-;        inc bx
-;        cmp al, 1
-;        je .found
-;    jmp .loop
-
-;    .found:
-;    mov bp, sp
-;    mov [bp+10], bx ;write into the bx saved by 'pusha'
-;    .not_found:
-;    popa
-;    pop ds
-;    ret
 
 
 [section .data]
