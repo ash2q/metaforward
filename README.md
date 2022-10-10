@@ -191,7 +191,7 @@ Segment Memory map:
 * 0x50000 - 0x5FFFF -- Xfree data space
 * 0x60000 - 0x6FFFF -- Xfreestanding code execution space
 * 0x70000 - 0x7FFFF -- Xstring construction space (created strings are placed here)
-* 0x80000 - 0x8FFFF -- string execution space (lines of code are placed here)
+* 0x80000 - 0x8FFFF -- Xstring execution space (lines of code are placed here)
 * 0x90000 - 0x9FFFF -- Xkeyword code space
 * 0xA0000 - 0xFFFFF -- Reserved (system use)
 
@@ -205,8 +205,9 @@ Compiler code layout:
 * 0x0000 - 0x0200 -- symbol maps (1 used for keywords, 7 available)
 * 0x1000 - 0x1200 -- Initial bootloader code (512 bytes)
 * 0x1200 - 0x1400 -- Reserved for bootloader data
-* 0x1400 - 0x2000 -- reserved (?)
-* 0x2000 - 0xFFFF -- keyword code data
+* 0x1400 - 0x1500 -- string buffer for code
+* 0x1500 - 0x2000 -- reserved (?)
+* 0x2000 - 0xFFFF -- (free) keyword code data
 
 Function code layout:
 

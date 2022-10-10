@@ -5,6 +5,13 @@
 %include "options.asm"
 begin_code:
 
+%ifdef PRINT_GREETING
+    mov al, 'M'
+    call print_char
+    mov al, 'F'
+    call print_char
+%endif
+
 init_keywords:
     ;store default keyword function into every keyword
     mov ax, keyword_error
@@ -27,9 +34,11 @@ init_keywords:
     mov al, ';'
     call dx
 
+%ifdef SUPPORT_KEYWORD_CALL
     mov bx, keyword_call
     mov al, '$'
     call dx
+%endif
 
 ;continue executing...
 
@@ -40,19 +49,23 @@ proto_console:
     mov cx, 3
     call print_string
 
-    push seg_string_exec
-    pop es
-    mov di, 0
+    mov di, compiler_mem_string_buffer
+%ifdef CHECK_OVERFLOW_GET_STRING
     mov cx, 255
+%endif 
 
 get_string:
     ;es:di = where to write string
     ;cx = size of string buffer, returned as final size of string
     pusha
-    xor dx, dx ;dx = actual string length
+    mov bp, sp
+    xor bx, bx
+    ;xor dx, dx ;dx = actual string length
     .read_key:
+    %ifdef CHECK_OVERFLOW_GET_STRING
         cmp cx, 0
         je .out_of_room
+    %endif
         ;int 0x16, 0 -- wait for key and read char
         mov ah, 0
         int 0x16
@@ -65,33 +78,40 @@ get_string:
         cmp al, 0x08 ;\b, backspace key is pressed
         jne .normal_key
         ;backspace
-        cmp dx, 0
+        cmp bx, 0 ;read di from pusha at start of function
         je .read_key ;just loop back if no characters entered
         call print_char ;still print it (print_char erases and sets cursor)
+    %ifdef CHECK_OVERFLOW_GET_STRING
         inc cx
-        dec dx
-        dec di
+    %endif
+        dec bx
         jmp .read_key
 
         .normal_key:
         call print_char
-        mov [es:di], al
-        inc dx
+        mov [es:di+bx], al
+    %ifdef CHECK_OVERFLOW_GET_STRING
         dec cx
-        inc di
+    %endif
+        inc bx
     jmp .read_key
     .out_of_room:
         ;mov al, 0x0D ;set to carriage return so next bit works right
     .done:
         mov al, 0x0A ;\n
         call print_char
-
-        mov bp, sp
-        mov [bp + 12], dx ;save dx into cx
+        ;mov ax, [bp] ;restore original destination address into dx
+        ;sub di, ax ;result is length written
+        mov [bp + 12], bx ;save bx into cx
         popa
 
     mov si, di
+
+    mov ax, cx
+    call print_hex_word
+
     call console_execute
+
 jmp proto_console
 
 
@@ -109,8 +129,6 @@ console_execute:
         imul bx, 2
         ;bx is now address of jump address in symbol map
 
-        push seg_function_map
-        pop fs
         push seg_functions
         pop ds
         mov di, [cs:current_fn_byte] ;should start at 0x1000
@@ -120,7 +138,7 @@ console_execute:
 
     .done:
     popa
-    ret
+ret
 
 
 meta_create_keyword:
@@ -151,7 +169,7 @@ meta_create_keyword:
     pop ax
     call install_keyword
     popa
-    ret
+ret
 
 
 
@@ -161,7 +179,7 @@ keyword_error:
     mov al, 'E'
     call print_char
     %endif
-    ret
+ret
 
 keyword_end_function:
     ;keyword for `;` 
@@ -169,6 +187,10 @@ keyword_end_function:
     mov [ds:di], al ;inject ret
     inc di
 ret
+
+keyword_asm_function
+    ;keyword for ' 
+    ;syntax: '12345678 -- where 12345678 is hex code
 
 
 meta_begin_function:
@@ -182,6 +204,7 @@ meta_begin_function:
     ;now function slot number is set to the current fn byte
 ret
 
+%ifdef SUPPORT_KEYWORD_CALL
 keyword_call:
     ;keyword for `$`
     ;$1234 -- where 1234 is the function slot
@@ -201,6 +224,7 @@ begin_template_call:
     ;64 8B 1E 0000 -- FS, MOV, RM(bx), OFFSET
     call bx
 end_template_call:
+%endif
 
 keyword_execute:
     ;keyword for x
@@ -231,15 +255,11 @@ ret
 install_keyword:
     ;al = keyword
     ;bx = address
-    push ds
     push di
-    push cs
-    pop ds
     movzx di, al
     imul di, 2
-    mov [ds:di], bx
+    mov [es:di], bx
     pop di
-    pop ds
 ret
 
 
@@ -455,16 +475,18 @@ temp_parse_word: resb 2
 
 end_bss:
 
+compiler_mem_string_buffer equ 0x1400
+
 ;constants
 seg_compiler_code equ 0x1000
-seg_string_exec equ 0x2000
-seg_function_map equ 0x3000
+;seg_string_exec equ 0x2000
+;seg_function_map equ 0x3000
 seg_functions equ 0x4000
 seg_free_space equ 0x5000
-seg_exec_space equ 0x6000
-seg_string_construct equ 0x7000
+;seg_exec_space equ 0x6000
+;seg_string_construct equ 0x7000
 seg_stack equ 0x8000
-seg_keyword_code equ 0x9000
+;seg_keyword_code equ 0x9000
 
 newline equ 0x0A
 
