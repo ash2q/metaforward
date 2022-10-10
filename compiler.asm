@@ -107,8 +107,8 @@ get_string:
 
     mov si, di
 
-    mov ax, cx
-    call print_hex_word
+    ;mov ax, cx
+    ;call print_hex_word
 
     call console_execute
 

@@ -25,7 +25,7 @@
 
 ;prints greeting of "MF" when starting metaforward
 ;costs 12 bytes
-;%define PRINT_GREETING
+%define PRINT_GREETING
 
 
 ;adds buffer overflow checking to get_string function in console
