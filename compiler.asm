@@ -33,6 +33,10 @@ init_keywords:
     mov bx, keyword_end_function
     mov al, ';'
     call dx
+    
+    mov bx, keyword_asm_function
+    mov al, 0x27 ;' character
+    call dx
 
 %ifdef SUPPORT_KEYWORD_CALL
     mov bx, keyword_call
@@ -206,6 +210,7 @@ keyword_asm_function
     ;keyword for ' 
     ;syntax: '12345678 -- where 12345678 is hex code
     inc si
+    dec cx
     call parse_hex
     add di, cx
     ret
