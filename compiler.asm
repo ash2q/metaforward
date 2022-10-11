@@ -44,9 +44,13 @@ init_keywords:
     call dx
 %endif
 
+;set to function code space
+mov di, 0x1000
+
 ;continue executing...
 
 proto_console:
+    push di
     push cs
     pop es ;needed?
     mov si, console_prompt
@@ -114,6 +118,9 @@ get_string:
     ;mov ax, cx
     ;call print_hex_word
 
+    push seg_functions
+    pop ds
+    pop di ;restore di saved at the beginning of proto_console
     call console_execute
 
 jmp proto_console
@@ -122,7 +129,7 @@ jmp proto_console
 
 console_execute:
     ;es:si = string to execute
-    pusha
+    ;ds:di should point to next function byte address
     cmp cx, 0
     je .done
 
@@ -133,16 +140,11 @@ console_execute:
         imul bx, 2
         ;bx is now address of jump address in symbol map
 
-        push seg_functions
-        pop ds
-        mov di, [cs:current_fn_byte] ;should start at 0x1000
         mov bp, sp
         mov bx, [cs:bx]
         call bx
-        mov [cs:current_fn_byte], di
 
     .done:
-    popa
 ret
 
 
@@ -493,9 +495,8 @@ parse_hex:
 
 
 
-[section .data]
+;[section .data]
 console_prompt: db 0x0A, '>', ' ' ;\n> 
-current_fn_byte: dw 0x1000
 [section .bss]
 begin_bss:
 
