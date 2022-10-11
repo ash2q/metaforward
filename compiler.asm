@@ -133,7 +133,8 @@ console_execute:
         pop ds
         mov di, [cs:current_fn_byte] ;should start at 0x1000
         mov bp, sp
-        call [cs:bx]
+        mov bx, [cs:bx]
+        call bx
         mov [cs:current_fn_byte], di
 
     .done:
@@ -149,6 +150,8 @@ meta_create_keyword:
 ;defines keyword of `x` which executes "nop nop retf" upon execution located at 0x1000
 ;note: the space between the memory and hex string is NOT enforced. That character is simply skipped. It can be anything
     pusha
+    push cs
+    pop ds ;this will be reset after ret, so it's fine to not preserve
     inc si
     mov al, [es:si] ;keyword to create
     push ax ;save the keyword
@@ -186,22 +189,45 @@ keyword_end_function:
     mov al, 0xCB ;ret
     mov [ds:di], al ;inject ret
     inc di
+%ifdef PRINT_FUNCTION_SIZE
+    mov al, ':'
+    call print_char
+    mov ax, [cs:start_function_address]
+    push di
+    xchg ax, di
+    sub ax, di
+    call print_hex_word
+    pop di
+%endif
+    
 ret
 
 keyword_asm_function
     ;keyword for ' 
     ;syntax: '12345678 -- where 12345678 is hex code
+    inc si
+    call parse_hex
+    add di, cx
+    ret
 
 
 meta_begin_function:
     ; meta keyword for `~`
     ; syntax `~1234 where 1234 is function number`
-    mov bx, 0x200 ;set to function slot area
     inc si ;get to start of number
     call parse_hex_word
     ;ax now function slot number
+    imul ax, 2
+    ;ax now slot index
+    add ax, 200
+    ;ax now slot_address + (slot_number * 2)
+    mov bx, ax
     mov [cs:bx], di
     ;now function slot number is set to the current fn byte
+
+%ifdef PRINT_FUNCTION_SIZE
+    mov [cs:start_function_address], di
+%endif
 ret
 
 %ifdef SUPPORT_KEYWORD_CALL
@@ -472,6 +498,9 @@ temp_var1: resb 2
 function_count: resw 1
 
 temp_parse_word: resb 2
+%ifdef PRINT_FUNCTION_SIZE
+start_function_address: resw 1
+%endif
 
 end_bss:
 
