@@ -7,45 +7,42 @@
 init:
 cld
 %ifndef USE_DEFAULT_CALL_STACK
-push seg_stack
-pop ss
+mov sp, seg_stack ;this should be safe to use temporarily and thus not require cli
+mov ss, sp
 ;seg_stack is 0x8000
-mov sp, ss ;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
+;setup stack to somewhere a bit more roomy (can potentially be eliminated if space is needed)
 ;because of excessive pusha/popa usage to save space, the stack may be unexpectedly large
 %endif
 
-copy_code:
-%ifdef ASSUME_ZERO_REGISTERS
-    mov cx, 1024
-%else
-    mov ds, di 
-    ;push cs
-    ;pop ds ;set ds to 0
-    mov ch, 4 ;sets CX to 0x400, or 1024
+%ifndef ASSUME_ZERO_REGISTERS
+mov ax, 0
+;mov bx, ax
+;mov cx, ax
+;mov di, ax
+;mov si, ax
 %endif
 
+copy_code:
+mov cx, sp ;it's perfectly ok to clear 0x8000 bytes, even if unnecessary
+
 mov si, begin_code
-%ifdef ASSUME_ZERO_REGISTERS
-    mov bh, 0x10 ;seg_compiler_code is 0x1000
-    mov es, bx
-%else
-    push seg_compiler_code
-    pop es
-%endif
-mov di, es ;copy compiler code to 0x1000, same as seg_compiler_code
+push seg_compiler_code
+pop es
+mov di, es ;copy compiler code to 0x1000:0x1000, same as seg_compiler_code
+mov [ss:di], dl ;save dx to 0x8000:0x1000. 
 %ifdef USE_FAR_CALL_JMP
     push di
     push di ;later is used by retf to far call to compiler code
 %endif
+
 .zero_memory
 ;zeros all memmory so that the .bss section can be safely assumed to be 0
 ;save cx and di so we can use them later
 pusha
-%ifndef ASSUME_ZERO_REGISTERS
-    mov al, 0
-%endif
+;ax should still be zero from init
 rep stosb
 popa
+
 .copy_boot_code:
 rep movsb
 

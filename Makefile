@@ -1,6 +1,7 @@
 default:
 	yasm compiler.asm -o compiler.bin -l compiler.list.asm
 	yasm boot.asm -o boot.bin -l boot.list.asm
+	yasm strap.asm -o strap.bin -l strap.list.asm -o strap.bin
 	yasm image.asm -o image.img
 	echo ""
 	@./print_size.sh boot.bin

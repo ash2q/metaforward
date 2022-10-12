@@ -197,6 +197,7 @@ Segment Memory map:
 
 Stack segment memory layout, segment 0x2000
 
+* 0x1000 -- disk number; dl register saved from bootloader entry point
 * 0x8000 -- call stack
 * 0xF000 -- data stack
 

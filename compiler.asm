@@ -38,6 +38,10 @@ init_keywords:
     mov al, 0x27 ;' character
     call dx
 
+    mov bx, keyword_execute
+    mov al, 'x'
+    call dx
+
 %ifdef SUPPORT_KEYWORD_CALL
     mov bx, keyword_call
     mov al, '$'
@@ -48,6 +52,9 @@ init_keywords:
 mov di, 0x1000
 
 ;continue executing...
+
+push cs
+pop fs ;fs should always be compiler code segment
 
 proto_console:
     push di
@@ -262,8 +269,13 @@ end_template_call:
 keyword_execute:
     ;keyword for x
     ;no arguments
-    ;mov bx, 0x1002
-ret
+    ;call stack is at 0x8000 and below. Data stack is at 0xA000 and above
+    ;mov bp, 0xA000 
+    mov bx, [cs:0x0200] ;load address of function slot 0
+    push ds ;push function code segment
+    push bx ;push address of function 1
+    retf
+;ret --never returns to here
 
 
 copy_template_block:

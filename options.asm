@@ -4,7 +4,7 @@
 
 ;assumes registers are 0 at boot (with the exception of DX, CS, IP)
 ;saves about 3 bytes
-%define ASSUME_ZERO_REGISTERS 
+;%define ASSUME_ZERO_REGISTERS 
 
 ;do not change stack location (note: this may not really be possible to get away with!)
 ;saves 8 bytes
@@ -35,6 +35,6 @@
 
 ;prints size of function once the function is ended using ';'
 ;uses 24 bytes
-%define PRINT_FUNCTION_SIZE
+;%define PRINT_FUNCTION_SIZE
 
 
