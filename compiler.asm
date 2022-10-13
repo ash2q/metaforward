@@ -57,6 +57,7 @@ push cs
 pop fs ;fs should always be compiler code segment
 
 proto_console:
+    mov dx, print_char
     push di
 %ifdef INCLUDE_PRINT_STRING
     push cs
@@ -67,16 +68,16 @@ proto_console:
 %else
     %ifdef EXTENDED_PROMPT
         mov al, newline
-        call print_char
+        call dx
         mov al, '>'
-        call print_char
+        call dx
         mov al, ' '
-        call print_char
+        call dx
     %else
         mov al, newline
-        call print_char
+        call dx
         mov al, '>'
-        call print_char
+        call dx
     %endif
 %endif
     mov di, compiler_mem_string_buffer
@@ -110,7 +111,7 @@ get_string:
         ;backspace
         cmp bx, 0 ;read di from pusha at start of function
         je .read_key ;just loop back if no characters entered
-        call print_char ;still print it (print_char erases and sets cursor)
+        call dx ;still print it (print_char erases and sets cursor)
     %ifdef CHECK_OVERFLOW_GET_STRING
         inc cx
     %endif
@@ -118,7 +119,7 @@ get_string:
         jmp .read_key
 
         .normal_key:
-        call print_char
+        call dx
         mov [es:di+bx], al
     %ifdef CHECK_OVERFLOW_GET_STRING
         dec cx
@@ -129,7 +130,7 @@ get_string:
         ;mov al, 0x0D ;set to carriage return so next bit works right
     .done:
         mov al, 0x0A ;\n
-        call print_char
+        call dx
         ;mov ax, [bp] ;restore original destination address into dx
         ;sub di, ax ;result is length written
         mov [bp + 12], bx ;save bx into cx
