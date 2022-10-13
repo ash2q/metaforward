@@ -8,6 +8,8 @@
 ;should be loaded using the following syntax:
 ;`Lf000 <hex code>
 
+console_execute equ 0x0000008C
+
 
 entry_point:
 ;ah=2 for read from disk
@@ -22,8 +24,10 @@ mov dl, [ss:0x1000]
 
 mov bx, 0xE000 ;enough room for 4 sectors, 1024 bytes
 ;es should already be set to cs (0x1000)
-
 int 0x13
-;data should now be loaded
+;data should now be loaded into [0x1000:E000]
+
+strlen:
+mov si, 0xE000
 
 

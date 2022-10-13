@@ -428,6 +428,22 @@ parse_hex_word:
     pop ds
     ret
 
+string_search:
+    ;es:si is string
+    ;al is value to find in string
+    ;returns cx set to position of first occurence of value in string
+    push di
+    mov di, si ;scasb uses di, not si
+    ;mov al, 0
+    repne scasb
+    ;si is original value
+    sub di, si
+    mov cx, di
+    pop di
+ret
+
+
+
 
 parse_hex:
     ;es:si should point to ascii string
