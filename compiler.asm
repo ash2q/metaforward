@@ -58,12 +58,27 @@ pop fs ;fs should always be compiler code segment
 
 proto_console:
     push di
+%ifdef INCLUDE_PRINT_STRING
     push cs
     pop es ;needed?
     mov si, console_prompt
     mov cx, 3
     call print_string
-
+%else
+    %ifdef EXTENDED_PROMPT
+        mov al, newline
+        call print_char
+        mov al, '>'
+        call print_char
+        mov al, ' '
+        call print_char
+    %else
+        mov al, newline
+        call print_char
+        mov al, '>'
+        call print_char
+    %endif
+%endif
     mov di, compiler_mem_string_buffer
 %ifdef CHECK_OVERFLOW_GET_STRING
     mov cx, 255
@@ -351,6 +366,7 @@ print_char:
     popa
     ret
 
+%ifdef INCLUDE_PRINT_STRING
 print_string:
     ;[es:si] = string to print
     ;cx = length
@@ -363,6 +379,7 @@ print_string:
     .done:
     popa
     ret
+%endif
 
 print_hex_word:
     ;ax = number
@@ -524,7 +541,9 @@ parse_hex:
 
 
 ;[section .data]
+%ifdef INCLUDE_PRINT_STRING
 console_prompt: db 0x0A, '>', ' ' ;\n> 
+%endif
 [section .bss]
 begin_bss:
 

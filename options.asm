@@ -37,4 +37,12 @@
 ;uses 24 bytes
 ;%define PRINT_FUNCTION_SIZE
 
+;Includes the print_string function
+;This only matters for API and meta reasons
+;uses 8 bytes
+;%define INCLUDE_PRINT_STRING
+
+;Makes the console prompt "> " instead of just ">"
+;Uses 5 bytes. Has no effect if INCLUDE_PRINT_STRING is defined
+%define EXTENDED_PROMPT
 
